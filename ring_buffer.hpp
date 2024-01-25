@@ -11,7 +11,6 @@
 #include <fcntl.h>
 
 template<typename T>
-requires std::is_trivially_copyable_v<T>
 class ring_buffer {
     struct chunk {
         uint64_t sequence_no;
@@ -32,8 +31,7 @@ private:
     void init_producer();
     void init_consumer();
 
-    void push(T data);
-    void push(T* data);
+    void push(const T& data);
 
     chunk pop();
 
@@ -87,6 +85,8 @@ void ring_buffer<T>::init() {
 template<typename T>
 void ring_buffer<T>::init_producer() {
     init<PROT_READ | PROT_WRITE>();
+    assert(info_ptr != nullptr);
+    assert(buffer_start_ptr != nullptr);
     info_ptr->current_sequence_id = 0;
     info_ptr->head_offset = 0;
 }
@@ -94,31 +94,37 @@ void ring_buffer<T>::init_producer() {
 template<typename T>
 void ring_buffer<T>::init_consumer() {
     init<PROT_READ>();
+    assert(info_ptr != nullptr);
+    assert(buffer_start_ptr != nullptr);
 }
 
 template<typename T>
-void ring_buffer<T>::push(T data) {
-    push(&data);
-}
-
-template<typename T>
-void ring_buffer<T>::push(T* data) {
-    std::memcpy(buffer_start_ptr + info_ptr->head_offset, info_ptr, sizeof(uint64_t));
+void ring_buffer<T>::push(const T& data) {
+    buffer_start_ptr[info_ptr->head_offset].sequence_no = info_ptr->current_sequence_id;
     info_ptr->current_sequence_id++;
-    std::memcpy(reinterpret_cast<uint64_t*>(buffer_start_ptr + info_ptr->head_offset) + 1, data, sizeof(T));
+    buffer_start_ptr[info_ptr->head_offset].data = data;
     info_ptr->head_offset = (info_ptr->head_offset + 1) % capacity;
 }
 
 template<typename T>
 ring_buffer<T>::chunk ring_buffer<T>::pop() {
-    return buffer_start_ptr[(info_ptr->head_offset - 1 + capacity) % capacity];
+    int offset = info_ptr->head_offset == 0 ? capacity - 1 : info_ptr->head_offset - 1;
+    return buffer_start_ptr[offset];
 }
 
 template<typename T>
 void ring_buffer<T>::free_buffer() {
-    int res = munmap(info_ptr, sizeof(info) + capacity * sizeof(chunk));
+    int res = munmap(info_ptr, sizeof(info));
     if (res == -1) {
         std::cerr << "munmap failed with err " << std::strerror(errno) << '\n';
+    }
+    res = munmap(buffer_start_ptr, capacity * sizeof(T));
+    if (res == -1) {
+        std::cerr << "munmap failed with err " << std::strerror(errno) << '\n';
+    }
+    res = shm_unlink("rb_info");
+    if (res == -1) {
+        std::cerr << "Unlink failed with err " << std::strerror(errno) << '\n';
     }
     res = shm_unlink("rb");
     if (res == -1) {
@@ -132,8 +138,7 @@ public:
     rb_producer();
     ~rb_producer();
 
-    void push(T data);
-    void push(T* data);
+    void push(const T& data);
     size_t capacity();
 
 private:
@@ -151,12 +156,7 @@ rb_producer<T>::~rb_producer() {
 }
 
 template<typename T>
-void rb_producer<T>::push(T data) {
-    rb.push(data);
-}
-
-template<typename T>
-void rb_producer<T>::push(T* data) {
+void rb_producer<T>::push(const T& data) {
     rb.push(data);
 }
 
@@ -169,7 +169,7 @@ template<typename T>
 class rb_consumer {
 public:
     rb_consumer();
-    bool pop(volatile T* data, volatile bool* dropped);
+    bool pop(T& data, bool& dropped);
     size_t capacity();
     void catchup();
 
@@ -185,14 +185,14 @@ rb_consumer<T>::rb_consumer() {
 }
 
 template<typename T>
-bool rb_consumer<T>::pop(volatile T* data, volatile bool* dropped) {
+bool rb_consumer<T>::pop(T& data, bool& dropped) {
     typename ring_buffer<T>::chunk temp = rb.pop();
-    *dropped = temp.sequence_no > current_sequence_id;
+    dropped = temp.sequence_no > current_sequence_id;
     if (temp.sequence_no < current_sequence_id) {
         return false;
     } else {
         current_sequence_id = temp.sequence_no + 1;
-        *data = temp.sequence_no;
+        data = temp.data;
         return true;
     }
 }

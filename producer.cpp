@@ -13,7 +13,7 @@ uint64_t next_data() {
 int main() {
     cpu_set_t cpuset;
     CPU_ZERO(&cpuset);
-    CPU_SET(14, &cpuset);
+    CPU_SET(12, &cpuset);
     int cpu_set_err = pthread_setaffinity_np(pthread_self(), sizeof(cpuset), &cpuset);
     if (cpu_set_err != 0) {
         std::cerr << "Failed to set CPU affinity\n";
