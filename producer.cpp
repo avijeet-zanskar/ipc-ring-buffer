@@ -41,7 +41,7 @@ int main() {
     rb_producer<Data> rb;
     signal(SIGINT, &handle_interrupt);
     while (true and !exit_flag) {
-        std::this_thread::sleep_for(std::chrono::nanoseconds(1000));
+        //std::this_thread::sleep_for(std::chrono::nanoseconds(1000));
         rb.push(next_data());
         //std::cout << count << '\n';
     }

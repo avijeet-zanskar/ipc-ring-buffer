@@ -47,7 +47,7 @@ int main() {
         } while (new_data == false);
         if (dropped) ++drop_count;
         if (data.val != data.val_copy) ++mis_read;
-        work();
+        //work();
         //std::cout << data.val << '\n';
     }
     std::cout << drop_count << '\n';
