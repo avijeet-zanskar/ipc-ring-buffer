@@ -6,6 +6,24 @@
 
 #include "ring_buffer.hpp"
 
+void work() {
+    volatile int x;
+    for (int i = 0; i < 100000; ++i) {
+        x = i;
+    }
+}
+
+struct Data {
+    uint64_t val;
+    uint8_t data[10000];
+    uint64_t val_copy;
+    const Data& operator=(const Data& rhs) {
+        std::memcpy(this, &rhs, sizeof(Data));
+        val_copy = val;
+        return *this;
+    }
+};
+
 int main() {
     cpu_set_t cpuset;
     CPU_ZERO(&cpuset);
@@ -15,10 +33,11 @@ int main() {
         std::cerr << "Failed to set CPU affinity\n";
         return EXIT_FAILURE;
     }
-    rb_consumer<uint64_t> rb;
+    rb_consumer<Data> rb;
     int count = 1000000;
-    uint64_t data;
+    Data data;
     bool dropped;
+    int mis_read = 0;
     int drop_count = 0;
     rb.catchup();
     while (count--) {
@@ -27,7 +46,10 @@ int main() {
             new_data = rb.pop(data, dropped);
         } while (new_data == false);
         if (dropped) ++drop_count;
-        std::cout << data << '\n';
+        if (data.val != data.val_copy) ++mis_read;
+        work();
+        //std::cout << data.val << '\n';
     }
     std::cout << drop_count << '\n';
+    std::cout << mis_read << '\n';
 }

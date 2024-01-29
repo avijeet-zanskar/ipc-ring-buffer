@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <cassert>
 #include <cstdint>
 #include <cstring>
@@ -101,8 +102,9 @@ void ring_buffer<T>::init_consumer() {
 
 template<typename T>
 void ring_buffer<T>::push(const T& data) {
-    info_ptr->head_offset = (info_ptr->head_offset + 1) % capacity;
-    buffer_start_ptr[info_ptr->head_offset] = chunk{ info_ptr->current_sequence_id, data };
+    auto write_offset = (info_ptr->head_offset + 1) % capacity;
+    buffer_start_ptr[write_offset] = chunk{ info_ptr->current_sequence_id, data };
+    info_ptr->head_offset = write_offset;
     info_ptr->current_sequence_id = info_ptr->current_sequence_id + 1;
 }
 
