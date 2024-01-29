@@ -11,6 +11,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <semaphore.h>
 
 template<typename T>
 class ring_buffer {
@@ -41,7 +42,7 @@ private:
 
     chunk* buffer_start_ptr;
     info* info_ptr;
-    static constexpr size_t capacity = 64;
+    static constexpr size_t capacity = 1024;
 };
 
 template<typename T>

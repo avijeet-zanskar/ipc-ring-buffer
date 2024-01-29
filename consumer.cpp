@@ -15,11 +15,10 @@ void work() {
 
 struct Data {
     uint64_t val;
-    uint8_t data[10000];
+    uint8_t data[1280];
     uint64_t val_copy;
     const Data& operator=(const Data& rhs) {
         std::memcpy(this, &rhs, sizeof(Data));
-        val_copy = val;
         return *this;
     }
 };
@@ -34,7 +33,7 @@ int main() {
         return EXIT_FAILURE;
     }
     rb_consumer<Data> rb;
-    int count = 1000000;
+    uint64_t count = 10000000;
     Data data;
     bool dropped;
     int mis_read = 0;
@@ -46,7 +45,10 @@ int main() {
             new_data = rb.pop(data, dropped);
         } while (new_data == false);
         if (dropped) ++drop_count;
-        if (data.val != data.val_copy) ++mis_read;
+        if (data.val != data.val_copy) {
+            //std::cout << data.val_copy - data.val << '\n';
+            ++mis_read;
+        }
         //work();
         //std::cout << data.val << '\n';
     }
