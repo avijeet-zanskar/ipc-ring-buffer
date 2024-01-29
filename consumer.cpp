@@ -16,7 +16,7 @@ int main() {
         return EXIT_FAILURE;
     }
     rb_consumer<uint64_t> rb;
-    int count = 10000;
+    int count = 1000000;
     uint64_t data;
     bool dropped;
     int drop_count = 0;

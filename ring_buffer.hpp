@@ -9,6 +9,7 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <unistd.h>
 
 template<typename T>
 class ring_buffer {
@@ -79,7 +80,7 @@ void ring_buffer<T>::init() {
         std::cerr << "Couldn't map address to ring buffer. mmap failed with err " << std::strerror(errno) << '\n';
         return;
     }
-    buffer_start_ptr = reinterpret_cast<chunk*>(buffer_start);;
+    buffer_start_ptr = reinterpret_cast<chunk*>(buffer_start);
 }
 
 template<typename T>
@@ -88,28 +89,26 @@ void ring_buffer<T>::init_producer() {
     assert(info_ptr != nullptr);
     assert(buffer_start_ptr != nullptr);
     info_ptr->current_sequence_id = 0;
-    info_ptr->head_offset = 0;
+    info_ptr->head_offset = 63;
 }
 
 template<typename T>
 void ring_buffer<T>::init_consumer() {
-    init<PROT_READ>();
+    init<PROT_READ | PROT_WRITE>();
     assert(info_ptr != nullptr);
     assert(buffer_start_ptr != nullptr);
 }
 
 template<typename T>
 void ring_buffer<T>::push(const T& data) {
-    buffer_start_ptr[info_ptr->head_offset].sequence_no = info_ptr->current_sequence_id;
-    info_ptr->current_sequence_id++;
-    buffer_start_ptr[info_ptr->head_offset].data = data;
     info_ptr->head_offset = (info_ptr->head_offset + 1) % capacity;
+    buffer_start_ptr[info_ptr->head_offset] = chunk{ info_ptr->current_sequence_id, data };
+    info_ptr->current_sequence_id = info_ptr->current_sequence_id + 1;
 }
 
 template<typename T>
 ring_buffer<T>::chunk ring_buffer<T>::pop() {
-    int offset = info_ptr->head_offset == 0 ? capacity - 1 : info_ptr->head_offset - 1;
-    return buffer_start_ptr[offset];
+    return buffer_start_ptr[info_ptr->head_offset];
 }
 
 template<typename T>
