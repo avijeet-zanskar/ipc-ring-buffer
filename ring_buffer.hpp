@@ -19,7 +19,7 @@ class ring_buffer {
     };
     struct info {
         uint64_t current_sequence_id;
-        int head_offset;
+        volatile int head_offset;
     };
     template<typename U> friend class rb_producer;
     template<typename U> friend class rb_consumer;
@@ -94,7 +94,7 @@ void ring_buffer<T>::init_producer() {
 
 template<typename T>
 void ring_buffer<T>::init_consumer() {
-    init<PROT_READ | PROT_WRITE>();
+    init<PROT_READ>();
     assert(info_ptr != nullptr);
     assert(buffer_start_ptr != nullptr);
 }
