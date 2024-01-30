@@ -20,8 +20,8 @@ class ring_buffer {
         T data;
     };
     struct info {
-        uint64_t current_sequence_id;
-        volatile int head_offset;
+        uint64_t current_sequence_no;
+        volatile uint64_t head;
     };
     template<typename U> friend class rb_producer;
     template<typename U> friend class rb_consumer;
@@ -42,7 +42,7 @@ private:
 
     chunk* buffer_start_ptr;
     info* info_ptr;
-    static constexpr size_t capacity = 1024;
+    static constexpr size_t capacity = 128 * 1024;
 };
 
 template<typename T>
@@ -90,8 +90,8 @@ void ring_buffer<T>::init_producer() {
     init<PROT_READ | PROT_WRITE>();
     assert(info_ptr != nullptr);
     assert(buffer_start_ptr != nullptr);
-    info_ptr->current_sequence_id = 0;
-    info_ptr->head_offset = 63;
+    info_ptr->current_sequence_no = 0;
+    info_ptr->head = 0;
 }
 
 template<typename T>
@@ -103,15 +103,16 @@ void ring_buffer<T>::init_consumer() {
 
 template<typename T>
 void ring_buffer<T>::push(const T& data) {
-    auto write_offset = (info_ptr->head_offset + 1) % capacity;
-    buffer_start_ptr[write_offset] = chunk{ info_ptr->current_sequence_id, data };
-    info_ptr->head_offset = write_offset;
-    info_ptr->current_sequence_id = info_ptr->current_sequence_id + 1;
+
+    auto write_offset = info_ptr->head + 1;
+    buffer_start_ptr[write_offset % capacity] = chunk{ info_ptr->current_sequence_no, data };
+    info_ptr->head = write_offset;
+    ++(info_ptr->current_sequence_no);
 }
 
 template<typename T>
 ring_buffer<T>::chunk ring_buffer<T>::pop() {
-    return buffer_start_ptr[info_ptr->head_offset];
+    return buffer_start_ptr[info_ptr->head % capacity];
 }
 
 template<typename T>
@@ -177,7 +178,7 @@ public:
 
 private:
     ring_buffer<T> rb;
-    uint64_t current_sequence_id;
+    uint64_t current_sequence_no;
 };
 
 template<typename T>
@@ -189,11 +190,11 @@ rb_consumer<T>::rb_consumer() {
 template<typename T>
 bool rb_consumer<T>::pop(T& data, bool& dropped) {
     typename ring_buffer<T>::chunk temp = rb.pop();
-    dropped = temp.sequence_no > current_sequence_id;
-    if (temp.sequence_no < current_sequence_id) {
+    dropped = temp.sequence_no > current_sequence_no;
+    if (temp.sequence_no < current_sequence_no) {
         return false;
     } else {
-        current_sequence_id = temp.sequence_no + 1;
+        current_sequence_no = temp.sequence_no + 1;
         data = temp.data;
         return true;
     }
@@ -206,5 +207,5 @@ size_t rb_consumer<T>::capacity() {
 
 template<typename T>
 void rb_consumer<T>::catchup() {
-    current_sequence_id = rb.info_ptr->current_sequence_id - 1;
+    current_sequence_no = rb.info_ptr->current_sequence_no;
 }

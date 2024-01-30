@@ -1,2 +1,4 @@
 consumer
 producer
+*.csv
+*.ipynb
