@@ -10,7 +10,7 @@
 #include "ring_buffer.hpp"
 
 void dump_csv(std::vector<uint64_t>& lag) {
-    std::ofstream dump("lag.csv");
+    std::ofstream dump("lag_semaphore.csv");
     dump << "cycles\n";
     for (auto i : lag) {
         dump << i << '\n';

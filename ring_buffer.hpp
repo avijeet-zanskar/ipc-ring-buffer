@@ -42,6 +42,7 @@ private:
 
     chunk* buffer_start_ptr;
     info* info_ptr;
+    sem_t* rb_sem;
     static constexpr size_t capacity = 128 * 1024;
 };
 
@@ -88,8 +89,15 @@ void ring_buffer<T>::init() {
 template<typename T>
 void ring_buffer<T>::init_producer() {
     init<PROT_READ | PROT_WRITE>();
+    auto err = sem_unlink("rb_sem");
+    rb_sem = sem_open("rb_sem", O_CREAT | O_EXCL | O_RDWR, S_IRWXU, 1);
+    if (rb_sem == SEM_FAILED) {
+        std::cerr << "Couldn't create semaphore. sem_open failed with err " << std::strerror(errno) << '\n';
+        return;
+    }
     assert(info_ptr != nullptr);
     assert(buffer_start_ptr != nullptr);
+    assert(rb_sem != nullptr);
     info_ptr->current_sequence_no = 0;
     info_ptr->head = 0;
 }
@@ -97,22 +105,32 @@ void ring_buffer<T>::init_producer() {
 template<typename T>
 void ring_buffer<T>::init_consumer() {
     init<PROT_READ>();
+    rb_sem = sem_open("rb_sem", O_RDWR);
+    if (rb_sem == SEM_FAILED) {
+        std::cerr << "Couldn't create semaphore. sem_open failed with err " << std::strerror(errno) << '\n';
+        return;
+    }
     assert(info_ptr != nullptr);
     assert(buffer_start_ptr != nullptr);
+    assert(rb_sem != nullptr);
 }
 
 template<typename T>
 void ring_buffer<T>::push(const T& data) {
-
     auto write_offset = info_ptr->head + 1;
+    sem_wait(rb_sem);
     buffer_start_ptr[write_offset % capacity] = chunk{ info_ptr->current_sequence_no, data };
     info_ptr->head = write_offset;
     ++(info_ptr->current_sequence_no);
+    sem_post(rb_sem);
 }
 
 template<typename T>
 ring_buffer<T>::chunk ring_buffer<T>::pop() {
-    return buffer_start_ptr[info_ptr->head % capacity];
+    sem_wait(rb_sem);
+    auto data = buffer_start_ptr[info_ptr->head % capacity];
+    sem_post(rb_sem);
+    return data;
 }
 
 template<typename T>
