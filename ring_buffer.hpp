@@ -89,7 +89,6 @@ void ring_buffer<T>::init() {
 template<typename T>
 void ring_buffer<T>::init_producer() {
     init<PROT_READ | PROT_WRITE>();
-    auto err = sem_unlink("rb_sem");
     rb_sem = sem_open("rb_sem", O_CREAT | O_EXCL | O_RDWR, S_IRWXU, 1);
     if (rb_sem == SEM_FAILED) {
         std::cerr << "Couldn't create semaphore. sem_open failed with err " << std::strerror(errno) << '\n';
@@ -150,6 +149,11 @@ void ring_buffer<T>::free_buffer() {
     res = shm_unlink("rb");
     if (res == -1) {
         std::cerr << "Unlink failed with err " << std::strerror(errno) << '\n';
+    }
+    res = sem_unlink("rb_sem");
+    if (res == -1) {
+        std::cerr << "No semaphore to unlink." << std::strerror(errno) << '\n';
+        return;
     }
 }
 
