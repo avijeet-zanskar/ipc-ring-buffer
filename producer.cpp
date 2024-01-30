@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <iostream>
 #include <thread>
+#include <utility>
 
 #include <signal.h>
 
@@ -11,7 +12,7 @@
 #include "ring_buffer.hpp"
 
 double get_tsc_freq() {
-    unsigned int eax_denominator, ebx_numerator, ecx_hz, edx;
+    unsigned int eax_denominator{}, ebx_numerator{}, ecx_hz{}, edx{};
     __get_cpuid(0x15, &eax_denominator, &ebx_numerator, &ecx_hz, &edx);
     return (static_cast<double>(ecx_hz) * ebx_numerator) / (1e9 * static_cast<double>(eax_denominator));
 }
@@ -24,9 +25,13 @@ void handle_interrupt(int) {
 
 struct Data {
     uint64_t data[128];
+    Data() = default;
     const Data& operator=(const Data& rhs) {
         std::memcpy(this, &rhs, sizeof(Data));
         return *this;
+    }
+    Data(const Data& rhs) {
+        std::memcpy(this, &rhs, sizeof(Data));
     }
 };
 
@@ -49,12 +54,12 @@ int main() {
     }
     rb_producer<Data> rb;
     signal(SIGINT, &handle_interrupt);
-    int cyc = 1000 * get_tsc_freq();
+    int cyc = static_cast<int>(1000 * get_tsc_freq());
     uint64_t data_count = 0;
     auto start = __rdtsc();
     auto start_time = std::chrono::steady_clock::now();
     while (!exit_flag) {
-        if (auto end = __rdtsc(); end - start < cyc) {
+        if (auto end = __rdtsc(); std::cmp_less(end - start, cyc)) {
             continue;
         } else {
             start = end;

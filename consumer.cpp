@@ -17,20 +17,18 @@ void dump_csv(std::vector<uint64_t>& lag) {
     }
 }
 
-void work() {
-    volatile int x;
-    for (int i = 0; i < 100000; ++i) {
-        x = i;
-    }
-}
-
 struct Data {
     uint64_t data[128];
+    Data() = default;
     const Data& operator=(const Data& rhs) {
         std::memcpy(this, &rhs, sizeof(Data));
         return *this;
     }
+    Data(const Data& rhs) {
+        std::memcpy(this, &rhs, sizeof(Data));
+    }
 };
+
 
 int main() {
     cpu_set_t cpuset;
@@ -64,7 +62,6 @@ int main() {
             //++mis_read;
         //}
         lag.push_back(__rdtsc() - data.data[0]);
-        //work();
         //std::cout << data.val << '\n';
     }
     auto end = std::chrono::steady_clock::now();
